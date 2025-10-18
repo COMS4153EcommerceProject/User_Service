@@ -7,15 +7,10 @@ from pydantic import BaseModel, Field
 
 
 class AddressBase(BaseModel):
-    id: UUID = Field(
+    addr_id: UUID = Field(
         default_factory=uuid4,
         description="Persistent Address ID (server-generated).",
         json_schema_extra={"example": "550e8400-e29b-41d4-a716-446655440000"},
-    )
-    street: str = Field(
-        ...,
-        description="Street address and number.",
-        json_schema_extra={"example": "123 Main St"},
     )
     city: str = Field(
         ...,
@@ -27,27 +22,21 @@ class AddressBase(BaseModel):
         description="State/region code if applicable.",
         json_schema_extra={"example": "NY"},
     )
-    postal_code: Optional[str] = Field(
+    zip_code: Optional[str] = Field(
         None,
         description="Postal or ZIP code.",
         json_schema_extra={"example": "10001"},
-    )
-    country: str = Field(
-        ...,
-        description="Country name or ISO label.",
-        json_schema_extra={"example": "USA"},
     )
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "addr_id": "550e8400-e29b-41d4-a716-446655440000",
                     "street": "123 Main St",
                     "city": "New York",
                     "state": "NY",
-                    "postal_code": "10001",
-                    "country": "USA",
+                    "zip_code": "10001",
                 }
             ]
         }
@@ -60,12 +49,11 @@ class AddressCreate(AddressBase):
         "json_schema_extra": {
             "examples": [
                 {
-                    "id": "11111111-1111-4111-8111-111111111111",
-                    "street": "221B Baker St",
-                    "city": "London",
-                    "state": None,
-                    "postal_code": "NW1 6XE",
-                    "country": "UK",
+                    "addr_id": "11111111-1111-4111-8111-111111111111",
+                    "street": "456 Beacon St",
+                    "city": "Boston",
+                    "state": "MA",
+                    "zip_code": "02115",
                 }
             ]
         }
@@ -83,11 +71,8 @@ class AddressUpdate(BaseModel):
     state: Optional[str] = Field(
         None, description="State/region code if applicable.", json_schema_extra={"example": "NY"}
     )
-    postal_code: Optional[str] = Field(
+    zip_code: Optional[str] = Field(
         None, description="Postal or ZIP code.", json_schema_extra={"example": "10002"}
-    )
-    country: Optional[str] = Field(
-        None, description="Country name or ISO label.", json_schema_extra={"example": "USA"}
     )
 
     model_config = {
@@ -97,8 +82,7 @@ class AddressUpdate(BaseModel):
                     "street": "124 Main St",
                     "city": "New York",
                     "state": "NY",
-                    "postal_code": "10002",
-                    "country": "USA",
+                    "zip_code": "10002",
                 },
                 {"city": "Brooklyn"},
             ]
@@ -122,12 +106,11 @@ class AddressRead(AddressBase):
         "json_schema_extra": {
             "examples": [
                 {
-                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "addr_id": "550e8400-e29b-41d4-a716-446655440000",
                     "street": "123 Main St",
                     "city": "New York",
                     "state": "NY",
-                    "postal_code": "10001",
-                    "country": "USA",
+                    "zip_code": "10001",
                     "created_at": "2025-01-15T10:20:30Z",
                     "updated_at": "2025-01-16T12:00:00Z",
                 }
