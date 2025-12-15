@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 from typing import Dict, List, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi import Query, Path, status
@@ -67,13 +67,43 @@ app = FastAPI(
 # -----------------------------------------------------------------------------
 # User endpoints
 # -----------------------------------------------------------------------------
-
 @app.post("/users", response_model=UserRead, status_code=201)
 def create_user(user: UserCreate):
-    """Create a new user."""
     conn = get_db_connection()
-    conn.close()
-    raise HTTPException(status_code=501, detail="Not implemented")
+    user_id = str(uuid4())
+    now = datetime.utcnow()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users
+                (user_id, first_name, last_name, email, phone, password, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    user_id,
+                    user.first_name,
+                    user.last_name,
+                    user.email,
+                    user.phone,
+                    user.password,
+                    now,
+                    now,
+                ),
+            )
+        conn.commit()
+    except pymysql.err.IntegrityError:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    finally:
+        conn.close()
+
+    return UserRead(
+        user_id=user_id,
+        created_at=now,
+        updated_at=now,
+        **user.dict()
+    )
 
 @app.get("/users", response_model=List[UserRead])
 def list_users(
@@ -81,40 +111,88 @@ def list_users(
     last_name: Optional[str] = Query(None),
     email: Optional[str] = Query(None),
 ):
-    """List users with optional filters."""
-    """TEMP: Check Cloud SQL connectivity."""
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1")  # Cloud SQL health check
-            cur.fetchone()
+    conn = get_db_connection()
+    query = "SELECT * FROM users WHERE 1=1"
+    params = []
 
-        conn.close()
-        raise HTTPException(status_code=501, detail="DB OK but endpoint not implemented")
+    if first_name:
+        query += " AND first_name=%s"
+        params.append(first_name)
+    if last_name:
+        query += " AND last_name=%s"
+        params.append(last_name)
+    if email:
+        query += " AND email=%s"
+        params.append(email)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB connection failed: {str(e)}")
+    with conn.cursor() as cur:
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+    conn.close()
+    return rows
+
 
 @app.get("/users/{user_id}", response_model=UserRead)
-def get_user(user_id: UUID = Path(..., description="User ID to retrieve")):
-    """Get a specific user by ID."""
+def get_user(user_id: UUID):
     conn = get_db_connection()
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM users WHERE user_id=%s", (str(user_id),))
+        user = cur.fetchone()
+
     conn.close()
-    raise HTTPException(status_code=501, detail="Not implemented")
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
+
 
 @app.patch("/users/{user_id}", response_model=UserRead)
 def update_user(user_id: UUID, update: UserUpdate):
-    """Partially update user fields."""
+    updates = {k: v for k, v in update.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
     conn = get_db_connection()
+    set_clause = ", ".join([f"{k}=%s" for k in updates])
+    values = list(updates.values())
+    values.append(datetime.utcnow())
+    values.append(str(user_id))
+
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            UPDATE users
+            SET {set_clause}, updated_at=%s
+            WHERE user_id=%s
+            """,
+            values,
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        cur.execute("SELECT * FROM users WHERE user_id=%s", (str(user_id),))
+        user = cur.fetchone()
+
+    conn.commit()
     conn.close()
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return user
+
 
 @app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: UUID):
-    """Delete a user by ID."""
     conn = get_db_connection()
+
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM users WHERE user_id=%s", (str(user_id),))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+    conn.commit()
     conn.close()
-    raise HTTPException(status_code=501, detail="Not implemented")
+
 
 # -----------------------------------------------------------------------------
 # Address endpoints
